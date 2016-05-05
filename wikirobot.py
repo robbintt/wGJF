@@ -60,10 +60,6 @@ def get_exit_links(url, headers, endpoint):
                 if link['ns'] == 0:
                     exit_links.append(link['title'])
 
-        import json
-        with open('python_page.json', 'w') as f:
-            json.dump(entry_info, f)
-
     else: 
         logging.debug("Request failed at: {}, error {}.".format(url, r.status_code))
 
