@@ -15,7 +15,7 @@ import logging
 LOG_FILENAME = "debug_log.txt"
 logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
-DEPTH = 3
+DEPTH = 2
 TRAVERSAL_SPEED_S = 0.3
 
 TARGET_WIKI_URL = "https://en.wikipedia.org/w/api.php"
@@ -81,15 +81,16 @@ def collect_routes(depth_counter, next_title, title_route=tuple()):
 
     import time; time.sleep(TRAVERSAL_SPEED_S)
 
+    endpoint = endpoint_initializer(next_title)
+
+    exit_links = get_exit_links(TARGET_WIKI_URL, headers, endpoint)
+
+    # record routes that return to the source title.
+    if ROOT_TITLE in exit_links:
+        print(title_route, depth_counter)
+        logging.debug("Return route found at depth {}: {}".format(depth_counter, title_route))
+
     if depth_counter > 0:
-        endpoint = endpoint_initializer(next_title)
-
-        exit_links = get_exit_links(TARGET_WIKI_URL, headers, endpoint)
-
-        # record routes that return to the source title.
-        if ROOT_TITLE in exit_links:
-            print(title_route, depth)
-            logging.debug("Return route found at depth {}: {}".format(depth, title_route))
 
         for title in exit_links:
             # keep digging unless we hit the source title.
@@ -99,28 +100,22 @@ def collect_routes(depth_counter, next_title, title_route=tuple()):
             if depth_counter > EXHAUSTED_TITLE_DEPTHS.get(title, -1) and title != title_route[0]:
                 collect_routes((depth_counter-1), title, title_route)
 
-
-            """
-            One way we can prevent repeat traversals is to add to the global exhaustion list only from the nearest nodes to the source node.
-
-            We could actually do an exhaustion dictionary. If an item is exhausted we record the depth it is exhausted at.
-            If it is tested at a higher depth we then refer to the dictionary and discover we should test it some more.
-            """
-            # add higher depth counters when traversing back up the recursion chain
-            if next_title in EXHAUSTED_TITLE_DEPTHS:
-                if EXHAUSTED_TITLE_DEPTHS[next_title] < depth_counter:
-                    EXHAUSTED_TITLE_DEPTHS[next_title] = depth_counter
-            else:
-                EXHAUSTED_TITLE_DEPTHS[next_title] = depth_counter
-
     else:
         # base case
-        # depth counter is zero, title may not yet be in EXHAUSTED_TITLE_DEPTHS
-        if next_title in EXHAUSTED_TITLE_DEPTHS:
-            if EXHAUSTED_TITLE_DEPTHS[next_title] < depth_counter:
-                EXHAUSTED_TITLE_DEPTHS[next_title] = depth_counter
-        else:
+        pass
+
+    """
+    One way we can prevent repeat traversals is to add to the global exhaustion list only from the nearest nodes to the source node.
+
+    We could actually do an exhaustion dictionary. If an item is exhausted we record the depth it is exhausted at.
+    If it is tested at a higher depth we then refer to the dictionary and discover we should test it some more.
+    """
+    # add depth counters when traversing back up the recursion chain
+    if next_title in EXHAUSTED_TITLE_DEPTHS:
+        if EXHAUSTED_TITLE_DEPTHS[next_title] < depth_counter:
             EXHAUSTED_TITLE_DEPTHS[next_title] = depth_counter
+    else:
+        EXHAUSTED_TITLE_DEPTHS[next_title] = depth_counter
 
     return
 
@@ -139,7 +134,8 @@ if __name__ == "__main__":
     Spawn a new controller for each item in the exit_links list.
 
     """
-    ROOT_TITLE = "Python_(programming_language)"
+    # use care, underscores in the url need to be spaces in the title for the comparison to work.
+    ROOT_TITLE = "Python (programming language)"
 
     collect_routes(DEPTH, ROOT_TITLE)
 
