@@ -11,6 +11,8 @@ Naming Idea: "Depth Charge" - because it's cool. Also we are doing a depth
 import requests
 import logging
 import os
+import time
+import json
 
 from sqlalchemy import Column, Integer, String
 from sqlalchemy import create_engine
@@ -48,7 +50,6 @@ Session = sessionmaker()
 Session.configure(bind=engine)
 session = Session()
 
-# note, unix epoch time as int: int(time.time())
 
 LOG_FILENAME = "debug.log"
 logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
@@ -88,9 +89,10 @@ def get_exit_links(url, headers, endpoint):
     """
     r = requests.get(url, headers=headers, params=endpoint)
 
+    exit_links = list()
+
     # munge exit links from the json response
     if r.status_code == 200:
-        exit_links = list()
         entry_info = r.json()
         for k, v in entry_info['query']['pages'].iteritems():
             if len(entry_info['query']['pages'].keys()) > 1:
@@ -117,13 +119,41 @@ def collect_routes(depth_counter, next_title, title_route=tuple()):
     """
     title_route += (next_title,)
 
-    print("Traversing Route: {}".format(title_route))
 
-    import time; time.sleep(TRAVERSAL_SPEED_S)
+    instance = session.query(Links).filter(Links.page == next_title).first()
+    if instance:
+        exit_links = json.loads(instance.links)
+        print(exit_links)
 
-    endpoint = endpoint_initializer(next_title)
+        """
+        # code to update cache if triggered, not currently used
+        # to add this in, use endpoint_initializer and get_exit_links
+        try:
+            link_update = { timestamp : _timestamp, links : links }
+            instance.update(link_update)
+            session.commit()
+        except:
+            session.rollback()
+        """
+    else:
 
-    exit_links = get_exit_links(TARGET_WIKI_URL, headers, endpoint)
+        print("Traversing Route: {}".format(title_route))
+        time.sleep(TRAVERSAL_SPEED_S)
+
+        endpoint = endpoint_initializer(next_title)
+        exit_links = get_exit_links(TARGET_WIKI_URL, headers, endpoint)
+
+        # Set up the sqlalchemy object
+        _page = next_title
+        _links = json.dumps(exit_links)
+        _timestamp = int(time.time())
+        _linkdata = Links(page=_page, links=_links, timestamp=_timestamp)
+
+        try:
+            session.add(_linkdata)
+            session.commit()
+        except:
+            session.rollback()
 
     # record routes that return to the source title.
     if TARGET_TITLE in exit_links:
