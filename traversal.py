@@ -28,7 +28,7 @@ EXHAUSTED_TITLE_DEPTHS = dict()
 
 
 def endpoint_initializer(title, pllimit='5000', prop='links', action='query', _format='json'):
-    """ Set up an endpoint with some defaults and a article title.
+    """ Set up an endpoint with some defaults and an article title.
     """
 
     # this formatting is a little easier on the eyes for simple settings dicts.
@@ -45,7 +45,7 @@ def endpoint_initializer(title, pllimit='5000', prop='links', action='query', _f
 
 
 def get_exit_links(url, headers, endpoint):
-    """ Build the request, hit the URL specified in params, and 
+    """ Build the request, hit the URL specified in params, return the exit_links
     """
     r = requests.get(url, headers=headers, params=endpoint)
 
