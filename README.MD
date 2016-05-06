@@ -1,3 +1,14 @@
+
+## Wikipedia Generalized Jesus Finder (wGJF)
+
+A generalized tool to find references to an article by depth-searching internal wikipedia links.
+
+Currently the search only finds references to the originating article, but this can be quickly modified.
+
+Named after ["5 clicks to Jesus"](http://www.urbandictionary.com/define.php?term=5%20Clicks%20To%20Jesus).
+
+
+
 ### What the heck is this?
 
 Wrote a recursive method for searching and added some logging. This doesn't store the resulting data anywhere. it should probably all be stored in a sqlite table. This could lighten the load on subsequent searches where 'recent information' could be reused.
