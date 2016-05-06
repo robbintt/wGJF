@@ -3,7 +3,7 @@
 
 A generalized tool to find references to an article by depth-searching internal wikipedia links.
 
-Currently the search only finds references to the originating article, but this can be quickly modified.
+Currently the search only finds references to the originating article, unless the TARGET_TITLE is altered.
 
 Named after ["5 clicks to Jesus"](http://www.urbandictionary.com/define.php?term=5%20Clicks%20To%20Jesus).
 
