@@ -1,16 +1,54 @@
-""" A little sample wiki robot for reading information
+""" A depth traversal/search of internal wiki links from a beginning article.
 
-Observation: Links in a wiki are one-way. It is not necessary to subtract source when
-                traversing links by depth.
+Observation: Links in a wiki are one-way. It is not necessary to subtract 
+                source when traversing links by depth.
 
 
 
-Naming Idea: "Depth Charge" - because it's cool. Also we are doing a depth based search.
+Naming Idea: "Depth Charge" - because it's cool. Also we are doing a depth 
+                based search.
 """
 import requests
-
 import logging
+import os
 
+from sqlalchemy import Column, Integer, String
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
+Base = declarative_base()
+
+class Links(Base):
+    """ 
+    Timestamps are for internal use. Use unix epoch time.
+
+    Wikipedia Title Limit:
+    https://en.wikipedia.org/wiki/Wikipedia:Naming_conventions_(technical_restrictions)#Title_length
+
+    256*5000=1,280,000
+
+    """
+    __tablename__ = 'links'
+
+    id = Column(Integer, primary_key=True)
+    page = Column(String(256))
+    links = Column(String(1280000))
+    timestamp = Column(Integer)
+
+
+PROJECT_ROOT = os.path.dirname(os.path.realpath(__file__))
+DB_NAME = "links.sqlite"
+DB_DIR = "database"
+SQLITE_DB = 'sqlite:////' + os.path.join(PROJECT_ROOT, DB_DIR, DB_NAME)
+
+engine = create_engine(SQLITE_DB)
+
+Session = sessionmaker()
+Session.configure(bind=engine)
+session = Session()
+
+# note, unix epoch time as int: int(time.time())
 
 LOG_FILENAME = "debug.log"
 logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
@@ -20,8 +58,9 @@ TRAVERSAL_SPEED_S = 0.3
 
 TARGET_WIKI_URL = "https://en.wikipedia.org/w/api.php"
 
+# easy to read header config section
 headers = dict()
-headers['user-agent'] = 'wiki-shallow-relation-graph/0.0.1'
+headers['user-agent'] = 'wGJF/0.0.1'
 
 # used to track unrelated links and reduce traversals. See recursive base case.
 EXHAUSTED_TITLE_DEPTHS = dict()
