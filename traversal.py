@@ -12,7 +12,7 @@ import requests
 import logging
 
 
-LOG_FILENAME = "debug_log.txt"
+LOG_FILENAME = "debug.log"
 logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
 DEPTH = 2
@@ -56,9 +56,10 @@ def get_exit_links(url, headers, endpoint):
         for k, v in entry_info['query']['pages'].iteritems():
             if len(entry_info['query']['pages'].keys()) > 1:
                 logging.debug("Why was more than one page returned in this query?")
-            for link in v['links']:
-                if link['ns'] == 0:
-                    exit_links.append(link['title'])
+            if 'links' in v:
+                for link in v['links']:
+                    if link['ns'] == 0:
+                        exit_links.append(link['title'])
 
     else: 
         logging.debug("Request failed at: {}, error {}.".format(url, r.status_code))
@@ -87,7 +88,7 @@ def collect_routes(depth_counter, next_title, title_route=tuple()):
 
     # record routes that return to the source title.
     if ROOT_TITLE in exit_links:
-        print(title_route, depth_counter)
+        print(depth_counter, title_route)
         logging.debug("Return route found at depth {}: {}".format(depth_counter, title_route))
 
     if depth_counter > 0:
