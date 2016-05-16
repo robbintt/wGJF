@@ -6,7 +6,7 @@ import os
 import time
 import json
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, Index
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -15,8 +15,9 @@ from sqlalchemy.orm import sessionmaker
 LOG_FILENAME = "debug.log"
 logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
-DEPTH = 2
+DEPTH = 3
 TRAVERSAL_SPEED_S = 0.3
+OUTPUT_COUNT = 0
 
 TARGET_WIKI_URL = "https://en.wikipedia.org/w/api.php"
 
@@ -38,9 +39,12 @@ class Links(Base):
     __tablename__ = 'links'
 
     id = Column(Integer, primary_key=True)
-    page = Column(String(256))
+    page = Column(String(256), index=True)
     links = Column(String(1280000))
     timestamp = Column(Integer)
+
+
+
 
 
 PROJECT_ROOT = os.path.dirname(os.path.realpath(__file__))
@@ -99,8 +103,14 @@ def get_exit_links(url, headers, endpoint):
 def collect_routes(depth_counter, next_title, title_route=tuple()):
     """ Recursively collect links a certain depth from next_title
     """
+
+    global OUTPUT_COUNT
+    OUTPUT_COUNT += 1
+    print(OUTPUT_COUNT)
+
     title_route += (next_title,)
 
+    session.expunge_all()
     instance = session.query(Links).filter(Links.page == next_title).first()
 
     if instance:
