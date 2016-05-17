@@ -24,3 +24,7 @@ The fundamental 'useful thing' this does is cache internal links from wikipedia 
 3. Run `python traversal.py`
 4. Tail the `debug.log` or sed/grep for only results.
 
+
+### Doesn't this information already exist?
+
+Sort of. There are wikipedia stats here: https://stats.wikimedia.org/EN/Sitemap.htm
