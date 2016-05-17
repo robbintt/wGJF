@@ -131,8 +131,8 @@ def collect_routes(depth_counter, next_title, title_route=tuple()):
     instance = session.query(Links).filter(Links.page == next_title).first()
 
     # don't do ANYTHING if we have already traversed at least depth_counter deep
-    if depth_counter > instance.depth:
-        if instance:
+    if instance:
+        if depth_counter > instance.depth:
             exit_links = json.loads(instance.links)
 
             """
@@ -146,59 +146,64 @@ def collect_routes(depth_counter, next_title, title_route=tuple()):
                 session.rollback()
             """
         else:
-            print("Traversing Route: {}".format(title_route))
-            time.sleep(TRAVERSAL_SPEED_S)
+            # depth has already been traversed
+            # this control structure needs unrolled
+            return
+            
+    else:
+        print("Traversing Route: {}".format(title_route))
+        time.sleep(TRAVERSAL_SPEED_S)
 
-            endpoint = endpoint_initializer(next_title)
-            exit_links = get_exit_links(TARGET_WIKI_URL, headers, endpoint)
+        endpoint = endpoint_initializer(next_title)
+        exit_links = get_exit_links(TARGET_WIKI_URL, headers, endpoint)
 
-            # Set up the sqlalchemy object
-            _page = next_title
-            _links = json.dumps(exit_links)
-            _timestamp = int(time.time())
-            _linkdata = Links(page=_page, links=_links, timestamp=_timestamp)
+        # Set up the sqlalchemy object
+        _page = next_title
+        _links = json.dumps(exit_links)
+        _timestamp = int(time.time())
+        _linkdata = Links(page=_page, links=_links, timestamp=_timestamp)
 
+        try:
+            session.add(_linkdata)
+            session.commit()
+        except:
+            session.rollback()
+
+    # SIMPLE RESULTS: record routes that return to TARGET_TITLE.
+    if TARGET_TITLE in exit_links:
+        logging.debug("Return route found at depth {}: {}".format(depth_counter, title_route))
+
+    if depth_counter > 0:
+        for title in exit_links:
+            # keep digging unless we hit TARGET_TITLE.
+            if title != TARGET_TITLE:
+                collect_routes((depth_counter-1), title, title_route)
+    else:
+        # base case, stop traversing
+        pass
+
+    ##
+    ## Finally record the furthest depth you have traversed from this page.
+    ##
+
+    # find the instance if it is freshly made, or just use the one that already exists.
+    if not instance:
+        instance = session.query(Links).filter(Links.page == next_title).first()
+
+    # if an instance exists (it may have failed out)
+    # then store the traversal depth completed during recursive calls inside this function.
+    # depth is initialized to -1 in the database, this depth is impossible.
+    if instance:
+        if depth_counter > instance.depth:
             try:
-                session.add(_linkdata)
+                instance.depth = depth_counter
                 session.commit()
             except:
+                # should probably record that this happened somewhere. this shouldn't happen.
                 session.rollback()
-
-        # SIMPLE RESULTS: record routes that return to TARGET_TITLE.
-        if TARGET_TITLE in exit_links:
-            logging.debug("Return route found at depth {}: {}".format(depth_counter, title_route))
-
-        if depth_counter > 0:
-            for title in exit_links:
-                # keep digging unless we hit TARGET_TITLE.
-                if title != TARGET_TITLE:
-                    collect_routes((depth_counter-1), title, title_route)
-        else:
-            # base case, stop traversing
-            pass
-
-        ##
-        ## Finally record the furthest depth you have traversed from this page.
-        ##
-    
-        # find the instance if it is freshly made, or just use the one that already exists.
-        if not instance:
-            instance = session.query(Links).filter(Links.page == next_title).first()
-
-        # if an instance exists (it may have failed out)
-        # then store the traversal depth completed during recursive calls inside this function.
-        # depth is initialized to -1 in the database, this depth is impossible.
-        if instance:
-            if depth_counter > instance.depth:
-                try:
-                    instance.depth = depth_counter
-                    session.commit()
-                except:
-                    # should probably record that this happened somewhere. this shouldn't happen.
-                    session.rollback()
-        else:
-            # instance must have failed out somehow, probably should record this and try again later
-            pass
+    else:
+        # instance must have failed out somehow, probably should record this and try again later
+        pass
 
     return
 
