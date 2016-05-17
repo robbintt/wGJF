@@ -17,6 +17,8 @@ logging.basicConfig(filename=LOG_FILENAME, level=logging.DEBUG)
 
 DEPTH = 3
 TRAVERSAL_SPEED_S = 0.3
+
+# shim to view progress in the console, can be removed later.
 OUTPUT_COUNT = 0
 
 TARGET_WIKI_URL = "https://en.wikipedia.org/w/api.php"
@@ -42,10 +44,8 @@ class Links(Base):
     page = Column(String(256), index=True)
     links = Column(String(1280000))
     timestamp = Column(Integer)
-
-
-
-
+    depth = Column(Integer, default=-1)
+    
 
 PROJECT_ROOT = os.path.dirname(os.path.realpath(__file__))
 DB_NAME = "links.sqlite"
@@ -102,61 +102,103 @@ def get_exit_links(url, headers, endpoint):
 
 def collect_routes(depth_counter, next_title, title_route=tuple()):
     """ Recursively collect links a certain depth from next_title
+
+    Future goal: record two more pieces of data during traversal:
+    1. does this page have a link to the TARGET_PAGE
+    2. does an nth descendant of this page have a link to the target page?
+
+    We can track the nth descendant by returning `True` up the stack if a page is found, otherwise
+    returning false.
+    We can track the current page by recording it in place.
+    
+    This process recommends we build a new database table for the TARGET_PAGE and
+    link cached items to the page by foreign key.
+
+    Then the results will be cached in a nice database and relevant descendants can be 
+    fruitfully traversed and irrelevant descendants can be ignored.
     """
 
+    # shim to view progress in console, can be removed later
     global OUTPUT_COUNT
     OUTPUT_COUNT += 1
-    print(OUTPUT_COUNT)
+    if not OUTPUT_COUNT % 1000:
+        print(OUTPUT_COUNT)
+
 
     title_route += (next_title,)
 
     session.expunge_all()
     instance = session.query(Links).filter(Links.page == next_title).first()
 
-    if instance:
-        exit_links = json.loads(instance.links)
+    # don't do ANYTHING if we have already traversed at least depth_counter deep
+    if depth_counter > instance.depth:
+        if instance:
+            exit_links = json.loads(instance.links)
 
-        """
-        # code to update cache if triggered, not currently used
-        # to add this in, use endpoint_initializer and get_exit_links
-        try:
-            link_update = { timestamp : _timestamp, links : links }
-            instance.update(link_update)
-            session.commit()
-        except:
-            session.rollback()
-        """
-    else:
-        print("Traversing Route: {}".format(title_route))
-        time.sleep(TRAVERSAL_SPEED_S)
+            """
+            # code to update cache if triggered, not currently used
+            # to add this in, use endpoint_initializer and get_exit_links
+            try:
+                link_update = { timestamp : _timestamp, links : links }
+                instance.update(link_update)
+                session.commit()
+            except:
+                session.rollback()
+            """
+        else:
+            print("Traversing Route: {}".format(title_route))
+            time.sleep(TRAVERSAL_SPEED_S)
 
-        endpoint = endpoint_initializer(next_title)
-        exit_links = get_exit_links(TARGET_WIKI_URL, headers, endpoint)
+            endpoint = endpoint_initializer(next_title)
+            exit_links = get_exit_links(TARGET_WIKI_URL, headers, endpoint)
 
-        # Set up the sqlalchemy object
-        _page = next_title
-        _links = json.dumps(exit_links)
-        _timestamp = int(time.time())
-        _linkdata = Links(page=_page, links=_links, timestamp=_timestamp)
+            # Set up the sqlalchemy object
+            _page = next_title
+            _links = json.dumps(exit_links)
+            _timestamp = int(time.time())
+            _linkdata = Links(page=_page, links=_links, timestamp=_timestamp)
 
-        try:
-            session.add(_linkdata)
-            session.commit()
-        except:
-            session.rollback()
+            try:
+                session.add(_linkdata)
+                session.commit()
+            except:
+                session.rollback()
 
-    # SIMPLE RESULTS: record routes that return to the source title.
-    if TARGET_TITLE in exit_links:
-        logging.debug("Return route found at depth {}: {}".format(depth_counter, title_route))
+        # SIMPLE RESULTS: record routes that return to TARGET_TITLE.
+        if TARGET_TITLE in exit_links:
+            logging.debug("Return route found at depth {}: {}".format(depth_counter, title_route))
 
-    if depth_counter > 0:
-        for title in exit_links:
-            # keep digging unless we hit the source title.
-            if title != title_route[0]:
-                collect_routes((depth_counter-1), title, title_route)
-    else:
-        # base case
-        pass
+        if depth_counter > 0:
+            for title in exit_links:
+                # keep digging unless we hit TARGET_TITLE.
+                if title != TARGET_TITLE:
+                    collect_routes((depth_counter-1), title, title_route)
+        else:
+            # base case, stop traversing
+            pass
+
+        ##
+        ## Finally record the furthest depth you have traversed from this page.
+        ##
+    
+        # find the instance if it is freshly made, or just use the one that already exists.
+        if not instance:
+            instance = session.query(Links).filter(Links.page == next_title).first()
+
+        # if an instance exists (it may have failed out)
+        # then store the traversal depth completed during recursive calls inside this function.
+        # depth is initialized to -1 in the database, this depth is impossible.
+        if instance:
+            if depth_counter > instance.depth:
+                try:
+                    instance.depth = depth_counter
+                    session.commit()
+                except:
+                    # should probably record that this happened somewhere. this shouldn't happen.
+                    session.rollback()
+        else:
+            # instance must have failed out somehow, probably should record this and try again later
+            pass
 
     return
 
